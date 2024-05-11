@@ -16,9 +16,6 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
 
 
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Astrazeneca Price History.xlsx')
-
-
 class CreateData:
     def __init__(self, df, keywords, timeframe, geo):
         self.df = df
@@ -91,6 +88,19 @@ class CreateData:
         return self.merge_datasets(stocks)
 
 
-create_data = CreateData(data, ['Astrazeneca', 'covid'], '2019-03-31 2024-03-27', 'GB')
-updated_df = create_data.return_data()
-print(updated_df)
+def visualise_correlation(data):
+    corr = data.corr()
+
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm',
+                square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    plt.show()
+
+
+#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Astrazeneca Price History.xlsx')
+
+#create_data = CreateData(data, ['Astrazeneca', 'covid'], '2019-03-31 2024-03-27', 'GB')
+#updated_df = create_data.return_data()
+#print(updated_df)
+
+#visualise_correlation(updated_df)
