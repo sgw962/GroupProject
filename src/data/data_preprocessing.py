@@ -97,10 +97,10 @@ def visualise_correlation(data):
     plt.show()
 
 
-#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Astrazeneca Price History.xlsx')
+data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
 
-#create_data = CreateData(data, ['Astrazeneca', 'covid'], '2019-03-31 2024-03-27', 'GB')
-#updated_df = create_data.return_data()
-#print(updated_df)
+create_data = CreateData(data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
+updated_df = create_data.return_data()
+print(updated_df)
 
-#visualise_correlation(updated_df)
+visualise_correlation(updated_df)

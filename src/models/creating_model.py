@@ -15,6 +15,8 @@ import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
 from src.data.data_preprocessing import CreateData
+from src.data.data_preprocessing import updated_df
+from src.data.data_preprocessing import visualise_correlation
 
 class CreateModel():
     def __init__(self, model, df):
@@ -64,11 +66,13 @@ class CreateModel():
         plt.show()
 
 
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Astrazeneca Price History.xlsx')
+#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/EasyJet Price History.xlsx')
 
-create_data = CreateData(data, ['Astrazeneca', 'covid'], '2019-03-31 2024-03-27', 'GB')
-updated_df = create_data.return_data()
+#create_data = CreateData(data, ['easy jet', 'cheap flights', 'holidays to europe'], '2019-03-31 2024-03-27', 'GB')
+#updated_df = create_data.return_data()
 
+#print(updated_df)
+visualise_correlation(updated_df)
 create_model = CreateModel(GradientBoostingRegressor, updated_df)
 create_model.build_model()
 create_model.feature_importance()
