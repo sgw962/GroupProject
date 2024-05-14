@@ -15,58 +15,66 @@ import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
 from src.data.data_preprocessing import CreateData
-from src.data.data_preprocessing import updated_df
+#from src.data.data_preprocessing import updated_df
 from src.data.data_preprocessing import visualise_correlation
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 
 class CreateModel:
-    def __init__(self, model, df):
-        self.model = model
+    def __init__(self, df):
         self.df = df
-
-    def build_model(self):
         X = self.df.iloc[:, 1:8]
         y = self.df.iloc[:, -1]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        self.model = None
+        self.y_pred = None
 
-        self.model = self.model(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+    def build_model(self):
+        self.model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
 
         # Fit the model
-        self.model.fit(X_train, y_train)
+        self.model.fit(self.X_train, self.y_train)
 
         # Predict the Close prices
-        y_pred = self.model.predict(X_test)
+        self.y_pred = self.model.predict(self.X_test)
 
         # Evaluate the model
-        mse = mean_squared_error(y_test, y_pred)
+        mse = mean_squared_error(self.y_test, self.y_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_test, y_pred)
+        r2 = r2_score(self.y_test, self.y_pred)
 
-        print('Mean Squared Error:', mse, '\n'
-                                          'Root Mean Squared Error:', rmse, '\n'
-                                                                            'R^2 Score:', r2)
+        print(f'Mean Squared Error: {mse}\n Root Mean Squared Error: {rmse}\n R^2 Score: {r2}')
+        return
 
-        plt.figure(figsize=(8, 6))
-        plt.scatter(y_test, y_pred, alpha=0.5)
-        plt.title('Actual vs. Predicted Values')
-        plt.xlabel('Actual Values')
-        plt.ylabel('Predicted Values')
-        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)  # Line showing perfect predictions
-        plt.grid(True)
-        plt.show()
+    def plot_model(self):
+        if self.y_pred is None:
+            print('Cannot plot model as model has not been built yet. Please call build_model() first.')
+            return
+        else:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(self.y_test, self.y_pred, alpha=0.5)
+            plt.title('Actual vs. Predicted Values')
+            plt.xlabel('Actual Values')
+            plt.ylabel('Predicted Values')
+            plt.plot([self.y_test.min(), self.y_test.max()], [self.y_test.min(), self.y_test.max()], 'k--', lw=2)  # Line showing perfect predictions
+            plt.grid(True)
+            plt.show()
 
     def feature_importance(self):
-        feature_names = self.df.drop(['Exchange Date', 'Next Day Close'], axis=1).columns
-        importances = self.model.feature_importances_
-        sorted_indices = np.argsort(importances)[::-1]
-        plt.figure(figsize=(10, 7))
-        plt.title('GB Feature Importance', fontsize=16)
-        plt.bar(range(len(importances)), importances[sorted_indices], align='center')
-        plt.xticks(range(len(importances)), feature_names[sorted_indices], rotation=45)
-        plt.tight_layout()
-        plt.show()
+        if self.model is None:
+            print('Cannot show feature importance as model has not been built yet. Please call build_model() first.')
+            return
+        else:
+            feature_names = self.df.drop(['Exchange Date', 'Next Day Close'], axis=1).columns
+            importances = self.model.feature_importances_
+            sorted_indices = np.argsort(importances)[::-1]
+            plt.figure(figsize=(10, 7))
+            plt.title('GB Feature Importance', fontsize=16)
+            plt.bar(range(len(importances)), importances[sorted_indices], align='center')
+            plt.xticks(range(len(importances)), feature_names[sorted_indices], rotation=45)
+            plt.tight_layout()
+            plt.show()
 
 
 # data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/EasyJet Price History.xlsx')
@@ -76,6 +84,8 @@ class CreateModel:
 
 # print(updated_df)
 #visualise_correlation(updated_df)
-create_model = CreateModel(GradientBoostingRegressor, updated_df)
-create_model.build_model()
+data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/src/data/Ocado Stock & trends.xlsx')
+create_model = CreateModel(data)
+#create_model.build_model()
+create_model.plot_model()
 create_model.feature_importance()

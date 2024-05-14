@@ -5,6 +5,7 @@ import matplotlib.dates as mdates
 import openpyxl
 import seaborn as sns
 import numpy as np
+from pytrends.exceptions import TooManyRequestsError
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error, r2_score
@@ -14,6 +15,8 @@ from sklearn.metrics import accuracy_score
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
+import requests
+import time
 
 
 class CreateData:
@@ -47,10 +50,22 @@ class CreateData:
 
         pytrends = TrendReq(hl='en-Uk', tz=360)
 
-        pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.geo)
+        retries = 5
+        delay = 10
 
-        self.trends = pytrends.interest_over_time()
-        return pd.DataFrame(self.trends)
+        for attempt in range(retries):
+            try:
+                pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.geo)
+                self.trends = pytrends.interest_over_time()
+                return pd.DataFrame(self.trends)
+            except TooManyRequestsError as e:
+                print(f"Attempt {attempt + 1}/{retries}: Rate limit exceeded. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2
+            except requests.exceptions.RequestException as e:
+                print(f"Request exception: {e}")
+                raise e
+        raise Exception("Failed to retrieve trends data after multiple attempts")
 
     def merge_datasets(self, stock_data):
         """
@@ -100,10 +115,10 @@ def visualise_correlation(data):
 weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
 #daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-create_data = CreateData(weekly_data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
+#create_data = CreateData(weekly_data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
 #full_data = create_data.return_data()
 #visualise_correlation(full_data)
-updated_df = create_data.return_data()
+#updated_df = create_data.return_data()
 #print(updated_df)
 
 #updated_df.to_excel('Ocado Stock & Trends.xlsx', index=False)
