@@ -30,7 +30,7 @@ class CreateData:
         self.df = self.df.iloc[:-1]
 
         numeric_cols = self.df.select_dtypes(include=np.number).columns.tolist()
-        numeric_cols.remove('Next Day Close')
+        #numeric_cols.remove('Next Day Close')
         scaler = MinMaxScaler().fit(self.df[numeric_cols])
         df_scaled = scaler.transform(self.df[numeric_cols])
         self.df[numeric_cols] = df_scaled
@@ -72,7 +72,7 @@ class CreateData:
         merged_nearest_df = pd.merge(stock_data, new_trends, left_on='nearest_date', right_on='date', how='left')
 
         # Removing redundant columns
-        merged_nearest_df.drop(['nearest_date', 'date', 'isPartial'], axis=1, inplace=True)
+        merged_nearest_df.drop(['nearest_date', 'date', 'isPartial', 'Net', '%Chg', 'Volume', 'Turnover - GBP'], axis=1, inplace=True)
 
         # Adjusting the columns order to have 'Next Day Close' on the end
         columns = merged_nearest_df.columns.tolist()
@@ -97,10 +97,15 @@ def visualise_correlation(data):
     plt.show()
 
 
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
+weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
+#daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-create_data = CreateData(data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
+create_data = CreateData(weekly_data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
+#full_data = create_data.return_data()
+#visualise_correlation(full_data)
 updated_df = create_data.return_data()
-print(updated_df)
+#print(updated_df)
 
-visualise_correlation(updated_df)
+#updated_df.to_excel('Ocado Stock & Trends.xlsx', index=False)
+
+#visualise_correlation(updated_df)

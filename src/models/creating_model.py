@@ -17,14 +17,17 @@ from sklearn.preprocessing import MinMaxScaler
 from src.data.data_preprocessing import CreateData
 from src.data.data_preprocessing import updated_df
 from src.data.data_preprocessing import visualise_correlation
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 
-class CreateModel():
+
+class CreateModel:
     def __init__(self, model, df):
         self.model = model
         self.df = df
 
     def build_model(self):
-        X = self.df.iloc[:, 1:12]
+        X = self.df.iloc[:, 1:8]
         y = self.df.iloc[:, -1]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -42,8 +45,8 @@ class CreateModel():
         r2 = r2_score(y_test, y_pred)
 
         print('Mean Squared Error:', mse, '\n'
-            'Root Mean Squared Error:', rmse, '\n'
-            'R^2 Score:', r2)
+                                          'Root Mean Squared Error:', rmse, '\n'
+                                                                            'R^2 Score:', r2)
 
         plt.figure(figsize=(8, 6))
         plt.scatter(y_test, y_pred, alpha=0.5)
@@ -66,13 +69,13 @@ class CreateModel():
         plt.show()
 
 
-#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/EasyJet Price History.xlsx')
+# data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/EasyJet Price History.xlsx')
 
-#create_data = CreateData(data, ['easy jet', 'cheap flights', 'holidays to europe'], '2019-03-31 2024-03-27', 'GB')
-#updated_df = create_data.return_data()
+# create_data = CreateData(data, ['easy jet', 'cheap flights', 'holidays to europe'], '2019-03-31 2024-03-27', 'GB')
+# updated_df = create_data.return_data()
 
-#print(updated_df)
-visualise_correlation(updated_df)
+# print(updated_df)
+#visualise_correlation(updated_df)
 create_model = CreateModel(GradientBoostingRegressor, updated_df)
 create_model.build_model()
 create_model.feature_importance()
