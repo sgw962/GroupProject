@@ -33,7 +33,7 @@ class CreateData:
         self.df = self.df.iloc[:-1]
 
         numeric_cols = self.df.select_dtypes(include=np.number).columns.tolist()
-        #numeric_cols.remove('Next Day Close')
+        numeric_cols.remove('Next Day Close')
         scaler = MinMaxScaler().fit(self.df[numeric_cols])
         df_scaled = scaler.transform(self.df[numeric_cols])
         self.df[numeric_cols] = df_scaled
@@ -48,7 +48,7 @@ class CreateData:
             lexicon_file=vader_lexicon_path
         )
 
-        pytrends = TrendReq(hl='en-Uk', tz=360)
+        pytrends = TrendReq(hl='en-Uk', tz=60)
 
         retries = 5
         delay = 10
@@ -57,7 +57,12 @@ class CreateData:
             try:
                 pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.geo)
                 self.trends = pytrends.interest_over_time()
-                return pd.DataFrame(self.trends)
+                pd.DataFrame(self.trends)
+                numeric_cols = self.trends.select_dtypes(include=np.number).columns.tolist()
+                scaler = MinMaxScaler().fit(self.trends[numeric_cols])
+                trends_scaled = scaler.transform(self.trends[numeric_cols])
+                self.trends[numeric_cols] = trends_scaled
+                return self.trends
             except TooManyRequestsError as e:
                 print(f"Attempt {attempt + 1}/{retries}: Rate limit exceeded. Retrying in {delay} seconds...")
                 time.sleep(delay)
@@ -103,24 +108,27 @@ class CreateData:
         return self.merge_datasets(stocks)
 
 
-def visualise_correlation(data):
-    corr = data.corr()
+def visualise_correlation(df):
+    corr = df.corr()
 
     plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm',
-                square=True, linewidths=.5, cbar_kws={"shrink": .5})
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
     plt.show()
 
 
 weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
 #daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-#create_data = CreateData(weekly_data, ['covid', 'online shop'], '2019-03-31 2024-03-27', 'GB')
+create_data = CreateData(weekly_data, ['covid', 'quarantine', 'lockdown'], '2019-03-31 2024-03-27', 'GB')
 #full_data = create_data.return_data()
 #visualise_correlation(full_data)
-#updated_df = create_data.return_data()
+updated_df = create_data.return_data()
 #print(updated_df)
 
-#updated_df.to_excel('Ocado Stock & Trends.xlsx', index=False)
 
-#visualise_correlation(updated_df)
+#Ocado & Astra '2019-03-31 2024-03-27'
+#Tesla '2019-05-15 2024-05-14'
+
+updated_df.to_excel('Ocado Stock & Trends2.xlsx', index=False)
+
+visualise_correlation(updated_df)
