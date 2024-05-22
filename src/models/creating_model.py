@@ -80,7 +80,7 @@ class CreateModel:
             print("Warning: There are zero values in the true labels, which can cause high MAPE.")
 
         # Evaluate the model on the test set
-        self.evaluate_model(self.y_test, self.y_pred, "Test Set")
+        self.evaluate_model(self.y_test, self.y_pred, "\nTest Set")
 
         # Evaluate the model on the validation set
         self.evaluate_model(self.y_val, self.y_val_pred, "\nValidation Set")
@@ -163,7 +163,7 @@ class CreateModel:
         self.y_pred = self.model.predict(self.X_test)
 
         # Evaluate the model on the test set
-        self.evaluate_model(self.y_test, self.y_pred, "Test Set After Retraining with Validation")
+        self.evaluate_model(self.y_test, self.y_pred, "\nTest Set After Retraining with Validation")
 
         # Evaluate the model on the validation set
         self.y_val_pred = self.model.predict(self.X_val)
@@ -265,8 +265,9 @@ create_model = CreateModel(updated_df)
 #    print(f"Mean Validation Score: {-mean_test_score}\n")
 #print("Best Hyperparameters:", best_params)
 
+create_model.split_data(0.8, 0.1, 0.1)
 create_model.build_model()
 create_model.scatter_plot()
 create_model.line_plot()
-create_model.new_line_plot()
 create_model.feature_importance()
+create_model.retrain_with_validation()
