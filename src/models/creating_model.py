@@ -14,9 +14,9 @@ from sklearn.metrics import accuracy_score
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
-from src.data.data_preprocessing import CreateData
-from src.data.data_preprocessing import updated_df
-from src.data.data_preprocessing import visualise_correlation
+#from src.data.data_preprocessing import CreateData
+#from src.data.data_preprocessing import updated_df
+#from src.data.data_preprocessing import visualise_correlation
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from datetime import datetime, timedelta
@@ -39,6 +39,9 @@ class CreateModel:
         self.y_pred = None
         self.y_val_pred = None
 
+        self.test_dates = None
+        self.val_dates = None
+
     def split_data(self, train_size=0.8, test_size=0.1, val_size=0.1):
         assert train_size + test_size + val_size == 1, "Proportions must sum to 1"
 
@@ -59,6 +62,9 @@ class CreateModel:
         self.y_test = test_data.iloc[:, -1]
         self.X_val = val_data.iloc[:, 1:9]
         self.y_val = val_data.iloc[:, -1]
+
+        self.test_dates = test_data['Exchange Date']
+        self.val_dates = val_data['Exchange Date']
 
         print("Training data length:", len(train_data))
         print("Testing data length:", len(test_data))
@@ -110,15 +116,19 @@ class CreateModel:
             plt.grid(True)
             plt.show()
 
-    def line_plot(self):
-        plt.plot(range(len(self.y_pred)), self.y_pred, label='Predicted Values')
-        plt.plot(range(len(self.y_test)), self.y_test, label='Actual Values')
+    def line_plot(self, data_name, time_frame, predicted, actual):
+        plt.plot(time_frame, predicted, label='Predicted Values')
+        plt.plot(time_frame, actual, label='Actual Values')
 
-        plt.title('Actual vs Predicted Values')
-        plt.xlabel('Time')
+        plt.title(f'{data_name} Actual vs Predicted Values')
+        plt.xlabel('Exchange Date')
         plt.ylabel('Next Day Close Price')
         plt.legend()
         plt.show()
+
+    def plot_line_graphs(self):
+        self.line_plot('Test Data', self.test_dates, self.y_test, self.y_pred)
+        self.line_plot('Validation Data', self.val_dates, self.y_val, self.y_val_pred)
 
     def feature_importance(self):
         if self.model is None:
@@ -177,7 +187,7 @@ class CreateModel:
 
 # print(updated_df)
 #visualise_correlation(updated_df)
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/src/data/Ocado Stock & trends.xlsx')
+data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/src/data/Ocado Stock & trends2.xlsx')
 
 param_grid = {
     'loss': 'huber',
@@ -254,7 +264,7 @@ sample_df = create_sample_data(300)
 
 
 
-create_model = CreateModel(updated_df)
+create_model = CreateModel(data)
 
 #best_params = create_model.tune_parameters(param_grid)
 #print(best_params.key())
@@ -268,6 +278,6 @@ create_model = CreateModel(updated_df)
 create_model.split_data(0.8, 0.1, 0.1)
 create_model.build_model()
 create_model.scatter_plot()
-create_model.line_plot()
+create_model.plot_line_graphs()
 create_model.feature_importance()
 create_model.retrain_with_validation()

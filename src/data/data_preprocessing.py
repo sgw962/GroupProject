@@ -129,6 +129,6 @@ updated_df = create_data.return_data()
 #Ocado & Astra '2019-03-31 2024-03-27'
 #Tesla '2019-05-15 2024-05-14'
 
-updated_df.to_excel('Ocado Stock & Trends2.xlsx', index=False)
+updated_df.to_excel('Ocado Stock & Trends.xlsx', index=False)
 
 visualise_correlation(updated_df)
