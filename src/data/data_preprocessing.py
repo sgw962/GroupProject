@@ -26,17 +26,12 @@ class CreateData:
         self.timeframe = timeframe
         self.geo = geo
         self.trends = None
+        self.merged_df = None
 
-    def format_data(self):
+    def create_target(self):
         self.df = self.df.dropna()
-        self.df['Next Day Close'] = self.df['Close'].shift(-1)
-        self.df = self.df.iloc[:-1]
-
-        numeric_cols = self.df.select_dtypes(include=np.number).columns.tolist()
-        numeric_cols.remove('Next Day Close')
-        scaler = MinMaxScaler().fit(self.df[numeric_cols])
-        df_scaled = scaler.transform(self.df[numeric_cols])
-        self.df[numeric_cols] = df_scaled
+        self.df['Next Day Close'] = self.df['Close'].shift(1)
+        self.df = self.df.iloc[1:]
 
         return self.df
 
@@ -57,12 +52,7 @@ class CreateData:
             try:
                 pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.geo)
                 self.trends = pytrends.interest_over_time()
-                pd.DataFrame(self.trends)
-                numeric_cols = self.trends.select_dtypes(include=np.number).columns.tolist()
-                scaler = MinMaxScaler().fit(self.trends[numeric_cols])
-                trends_scaled = scaler.transform(self.trends[numeric_cols])
-                self.trends[numeric_cols] = trends_scaled
-                return self.trends
+                return pd.DataFrame(self.trends)
             except TooManyRequestsError as e:
                 print(f"Attempt {attempt + 1}/{retries}: Rate limit exceeded. Retrying in {delay} seconds...")
                 time.sleep(delay)
@@ -87,48 +77,59 @@ class CreateData:
         new_trends['date'] = pd.to_datetime(new_trends['date'])
 
         # Finding the nearest dates and merging the 'AstraZeneca' column based on these
-        stock_data['nearest_date'] = stock_data['Exchange Date'].apply(
-            lambda x: new_trends['date'].iloc[(new_trends['date'] - x).abs().argsort()[0]])
-        merged_nearest_df = pd.merge(stock_data, new_trends, left_on='nearest_date', right_on='date', how='left')
+        stock_data['nearest_date'] = stock_data['Exchange Date'].apply(lambda x: new_trends['date'].iloc[(new_trends['date'] - x).abs().argsort()[0]])
+        self.merged_df = pd.merge(stock_data, new_trends, left_on='nearest_date', right_on='date', how='left')
 
         # Removing redundant columns
-        merged_nearest_df.drop(['nearest_date', 'date', 'isPartial', 'Net', '%Chg', 'Volume', 'Turnover - GBP'], axis=1, inplace=True)
+        self.merged_df.drop(['nearest_date', 'date', 'isPartial', 'Net', '%Chg', 'Volume', 'Turnover - GBP'], axis=1, inplace=True)
 
         # Adjusting the columns order to have 'Next Day Close' on the end
-        columns = merged_nearest_df.columns.tolist()
+        columns = self.merged_df.columns.tolist()
         columns.remove('Next Day Close')
         columns.append('Next Day Close')
-        merged_nearest_df = merged_nearest_df[columns]
+        self.merged_df = self.merged_df[columns]
 
-        return merged_nearest_df
+        return self.merged_df
+
+    def normalise_data(self):
+        if self.merged_df is None:
+            raise Exception('Previous methods must first be run to create the merged dataset')
+        else:
+            numeric_cols = self.merged_df.select_dtypes(include=np.number).columns.tolist()
+            numeric_cols.remove('Next Day Close')
+            scaler = MinMaxScaler()#.fit(self.merged_df[numeric_cols])
+            df_scaled = scaler.fit_transform(self.merged_df[numeric_cols])
+            self.merged_df[numeric_cols] = df_scaled
+            return self.merged_df
 
     def return_data(self):
-        stocks = self.format_data()
+        stocks = self.create_target()
         self.get_trends()
-        return self.merge_datasets(stocks)
+        self.merge_datasets(stocks)
+        self.normalise_data()
+        return self.merged_df
 
+    def visualise_correlation(self):
+        corr_df = self.merged_df.drop('Exchange Date', axis=1)
+        corr = corr_df.corr()
 
-def visualise_correlation(df):
-    corr = df.corr()
-
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
-    plt.show()
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
+        plt.show()
 
 
 weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
 #daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-create_data = CreateData(weekly_data, ['covid', 'quarantine', 'lockdown'], '2019-03-31 2024-03-27', 'GB')
+create_data = CreateData(weekly_data, ['covid', 'lockdown', 'quarantine'], '2019-03-31 2024-03-27', 'GB')
 #full_data = create_data.return_data()
 #visualise_correlation(full_data)
 updated_df = create_data.return_data()
-#print(updated_df)
+create_data.visualise_correlation()
+print(updated_df)
 
 
 #Ocado & Astra '2019-03-31 2024-03-27'
 #Tesla '2019-05-15 2024-05-14'
 
-updated_df.to_excel('Ocado Stock & Trends.xlsx', index=False)
-
-visualise_correlation(updated_df)
+#updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & Trends.xlsx', index=False)

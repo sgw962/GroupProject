@@ -20,6 +20,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from datetime import datetime, timedelta
+from xgboost import XGBRegressor
 
 
 class CreateModel:
@@ -41,6 +42,8 @@ class CreateModel:
 
         self.test_dates = None
         self.val_dates = None
+
+        self.metrics = {}
 
     def split_data(self, train_size=0.8, test_size=0.1, val_size=0.1):
         assert train_size + test_size + val_size == 1, "Proportions must sum to 1"
@@ -72,8 +75,8 @@ class CreateModel:
 
     def build_model(self, params=None):
         if params is None:
-            params = {'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3, 'random_state': 42}
-        self.model = GradientBoostingRegressor(**params)
+            params = {'n_estimators': 1000, 'learning_rate': 0.1, 'max_depth': 10, 'random_state': 42, 'min_child_weight': 5, 'colsample_bytree': 0.9}
+        self.model = XGBRegressor(**params)
 
         # Fit the model
         self.model.fit(self.X_train, self.y_train)
@@ -98,8 +101,18 @@ class CreateModel:
         mae = mean_absolute_error(y_true, y_pred)
         mape = mean_absolute_percentage_error(y_true, y_pred)
 
-        print(
-            f'{set_name} - \nMean Squared Error: {mse}\nRoot Mean Squared Error: {rmse}\nR^2 Score: {r2}\nMean Absolute Error: {mae}\nMean Absolute Percentage Error: {mape}%')
+        self.metrics[set_name] = {
+            'R2': r2,
+            'MSE': mse,
+            'RMSE': rmse,
+            'MAE': mae,
+            'MAPE': mape
+        }
+
+        print(f'{set_name} - \nMean Squared Error: {mse}\nRoot Mean Squared Error: {rmse}\nR^2 Score: {r2}\nMean Absolute Error: {mae}\nMean Absolute Percentage Error: {mape}%')
+
+    def get_metrics_dataframe(self):
+        return pd.DataFrame(self.metrics).transpose()
 
     def scatter_plot(self):
         if self.y_pred is None:
@@ -111,12 +124,11 @@ class CreateModel:
             plt.title('Actual vs. Predicted Values')
             plt.xlabel('Actual Values')
             plt.ylabel('Predicted Values')
-            plt.plot([self.y_test.min(), self.y_test.max()], [self.y_test.min(), self.y_test.max()], 'k--',
-                     lw=2)  # Line showing perfect predictions
+            plt.plot([self.y_test.min(), self.y_test.max()], [self.y_test.min(), self.y_test.max()], 'k--', lw=2)  # Line showing perfect predictions
             plt.grid(True)
             plt.show()
 
-    def line_plot(self, data_name, time_frame, predicted, actual):
+    def line_plot(self, data_name, time_frame, actual, predicted):
         plt.plot(time_frame, predicted, label='Predicted Values')
         plt.plot(time_frame, actual, label='Actual Values')
 
@@ -159,8 +171,8 @@ class CreateModel:
 
     def retrain_with_validation(self, params=None):
         if params is None:
-            params = {'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3, 'random_state': 42}
-        self.model = GradientBoostingRegressor(**params)
+            params = {'n_estimators': 1000, 'learning_rate': 0.1, 'max_depth': 10, 'random_state': 42, 'min_child_weight': 5, 'colsample_bytree': 0.9}
+        self.model = XGBRegressor(**params)
 
         # Combine training and validation data
         X_combined = pd.concat([self.X_train, self.X_val])
@@ -187,7 +199,7 @@ class CreateModel:
 
 # print(updated_df)
 #visualise_correlation(updated_df)
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/src/data/Ocado Stock & trends2.xlsx')
+data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/src/data/Ocado Stock & trends.xlsx')
 
 param_grid = {
     'loss': 'huber',
@@ -215,7 +227,7 @@ param_grid = {
 
 params_list = {
  'loss': 'huber',
- 'n_estimators': 100,
+ 'n_estimators': 300,
  'learning_rate': 0.1,
  'criterion': 'squared_error',
  'init': 'zero',
@@ -237,33 +249,6 @@ params_list = {
  }
 
 
-def create_sample_data(row_num):
-    num_rows = row_num
-
-    start_date = datetime.strptime('2023-04-01', '%Y-%m-%d')
-    date_range = [start_date + timedelta(days=i) for i in range(num_rows)]
-
-    np.random.seed(0)
-
-    data_params = {
-        'Exchange Date': date_range,
-        'Close': np.random.uniform(0.00, 1.00, num_rows),
-        'Open': np.random.uniform(0.00, 1.00, num_rows),
-        'Low': np.random.uniform(0.00, 1.00, num_rows),
-        'High': np.random.uniform(0.00, 1.00, num_rows),
-        'Flow': np.random.uniform(0.00, 1.00, num_rows),
-        'Covid': np.random.choice([0, 100], num_rows),
-        'Online Shop': np.random.choice([0, 100], num_rows),
-        'Next Day Close': np.random.uniform(3.000, 29.000, num_rows)
-    }
-
-    sample_data = pd.DataFrame(data_params)
-    return sample_data
-
-sample_df = create_sample_data(300)
-
-
-
 create_model = CreateModel(data)
 
 #best_params = create_model.tune_parameters(param_grid)
@@ -281,3 +266,6 @@ create_model.scatter_plot()
 create_model.plot_line_graphs()
 create_model.feature_importance()
 create_model.retrain_with_validation()
+metrics_df = create_model.get_metrics_dataframe()
+
+metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/Ocado Metrics.xlsx')
