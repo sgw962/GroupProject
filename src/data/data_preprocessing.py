@@ -118,18 +118,30 @@ class CreateData:
         plt.show()
 
 
-weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Ocado Price History.xlsx')
+    def visualise_price(self):
+        price = self.merged_df['Next Day Close']
+        time_scale = self.merged_df['Exchange Date']
+        plt.plot(time_scale, price)
+
+        plt.title('Next Day Closing Price Over Time')
+        plt.xlabel('Exchange Date')
+        plt.ylabel('Close Price')
+        plt.show()
+
+
+weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Tesla Price History.xlsx')
 #daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-create_data = CreateData(weekly_data, ['covid', 'lockdown', 'quarantine'], '2019-03-31 2024-03-27', 'GB')
+create_data = CreateData(weekly_data, ['ev', 'elon', 'tesla'], '2019-05-15 2024-05-14', 'GB')
 #full_data = create_data.return_data()
 #visualise_correlation(full_data)
 updated_df = create_data.return_data()
 create_data.visualise_correlation()
+create_data.visualise_price()
 print(updated_df)
 
 
 #Ocado & Astra '2019-03-31 2024-03-27'
 #Tesla '2019-05-15 2024-05-14'
 
-#updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & Trends.xlsx', index=False)
+updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Tesla Stock & Trends.xlsx', index=False)
