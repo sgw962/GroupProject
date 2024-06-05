@@ -17,6 +17,23 @@ from xgboost import XGBRegressor
 
 
 class CreateModel:
+    """
+    This class is for applying the XGBRegressor to pre_processed stock price & google trends data.
+
+    It takes the dataset as input and will split it into train, test, validate, then evaluate the performance of
+    the model. The output returned will be R2, MSE, RMSE, MAE & MAPE metrics, as well as line graph plotting predicted
+    against actual values using both test and val datasets for:
+    - The model built with the full X_train data by calling train_model().
+    - The model built with the full X_train data + full X_val data by calling retrain_with_validation().
+    - The model built and trained with the same data as train_model(), however, with the Google Trends features removed
+    by calling retrain_without_trends().
+
+    Additionally, if wanting to test for the best hyperparameters for the model on the given dataset call
+    tune_parameters() and add your parameter grid in the brackets. These can then be used each iteration of the model
+    by adding best_params when calling the above model building methods.
+
+    If wanting to save the metrics as a table in Excel call get_metrics_dataframe().
+    """
     def __init__(self, df):
         self.df = df
         self.df['Exchange Date'] = pd.to_datetime(self.df['Exchange Date'])
@@ -83,7 +100,7 @@ class CreateModel:
 
         print(f'{set_name} - \nMean Squared Error: {mse}\nRoot Mean Squared Error: {rmse}\nR^2 Score: {r2}\nMean Absolute Error: {mae}\nMean Absolute Percentage Error: {mape}%')
 
-    def build_model(self, params=None):
+    def train_model(self, params=None):
         if params is None:
             params = {'booster': 'gblinear', 'feature_selector': 'greedy', 'updater': 'coord_descent'}
         self.model = XGBRegressor(**params)
@@ -106,6 +123,8 @@ class CreateModel:
 
         self.line_plot('Test Data', self.test_dates, self.y_test, self.y_pred)
         self.line_plot('Validation Data', self.val_dates, self.y_val, self.y_val_pred)
+
+        self.feature_importance('X Train Set')
 
     def get_metrics_dataframe(self):
         return pd.DataFrame(self.metrics).transpose()
@@ -134,7 +153,7 @@ class CreateModel:
         plt.legend()
         plt.show()
 
-    def feature_importance(self):
+    def feature_importance(self, features_name):
         if self.model is None:
             print('Cannot show feature importance as model has not been built yet. Please call build_model() first.')
             return
@@ -148,7 +167,7 @@ class CreateModel:
 
             sorted_indices = np.argsort(importances)[::-1]
             plt.figure(figsize=(10, 7))
-            plt.title('GB Feature Importance', fontsize=16)
+            plt.title(f'{features_name} Feature Importance', fontsize=16)
             plt.bar(range(len(importances)), importances[sorted_indices], align='center')
             plt.xticks(range(len(importances)), feature_names[sorted_indices], rotation=45)
             plt.tight_layout()
@@ -196,6 +215,8 @@ class CreateModel:
         self.line_plot('Test Data After Retraining with Validation', self.test_dates, self.y_test, self.y_pred)
         self.line_plot('Validation Data After Retraining with Validation', self.val_dates, self.y_val, self.y_val_pred)
 
+        self.feature_importance('X Train with Validation Set')
+
     def retrain_without_trends(self, params=None):
         if params is None:
             params = {'booster': 'gblinear', 'feature_selector': 'greedy', 'updater': 'coord_descent'}
@@ -217,45 +238,8 @@ class CreateModel:
         self.line_plot('Test Set Without Trends Data', self.test_dates, self.y_test, new_y_pred)
         self.line_plot('Validation Data Without Trends Data', self.val_dates, self.y_val, new_y_val_pred)
 
-    def visualise_test(self):
-        test = self.y_test
-        time_scale = self.test_dates
-        plt.plot(time_scale, test)
+        self.feature_importance('X Train Set without Trends Data')
 
-        plt.title('Test Values Over Time')
-        plt.xlabel('Exchange Date')
-        plt.ylabel('Y Test')
-        plt.show()
-
-
-# data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/EasyJet Price History.xlsx')
-
-# create_data = CreateData(data, ['easy jet', 'cheap flights', 'holidays to europe'], '2019-03-31 2024-03-27', 'GB')
-# updated_df = create_data.return_data()
-
-# print(updated_df)
-#visualise_correlation(updated_df)
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/AstraZeneca Stock & trends.xlsx')
-
-def visualise_price(price_df):
-    price = price_df['Next Day Close']
-    time_scale = price_df['Exchange Date']
-    plt.plot(time_scale, price)
-
-    plt.title('Closing Price Over Time')
-    plt.xlabel('Exchange Date')
-    plt.ylabel('Next Day Close Price')
-    plt.show()
-
-def visualise_correlation(df):
-    corr_df = df.drop('Exchange Date', axis=1)
-    corr = corr_df.corr()
-
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
-    plt.show()
-
-#visualise_price(data)
 
 param_grid = {
     'booster': ['gblinear'],  # Booster type
@@ -283,20 +267,26 @@ boosters = {
     'booster': ['gblinear', 'gbtree', 'dart']
 }
 
-#visualise_correlation(data)
+data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & trends.xlsx')
+
+plt.plot(data['Exchange Date'], data['Next Day Close'])
+
+plt.title('Next Day Close for whole Ocado Data')
+plt.xlabel('Exchange Date')
+plt.ylabel('Next Day Close Price')
+plt.legend()
+plt.show()
+
 
 create_model = CreateModel(data)
 create_model.split_data(0.8, 0.1, 0.1)
 
 #best_params = create_model.tune_parameters(boosters)
 
-create_model.build_model(params_list)
+create_model.train_model(params_list)
 create_model.scatter_plot()
-create_model.feature_importance()
 create_model.retrain_with_validation(params_list)
-create_model.feature_importance()
 create_model.retrain_without_trends(params_list)
-create_model.feature_importance()
 metrics_df = create_model.get_metrics_dataframe()
 
-metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/AstraZeneca Metrics.xlsx')
+metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/Ocado Metrics.xlsx')

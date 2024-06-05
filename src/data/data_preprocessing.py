@@ -20,11 +20,22 @@ import time
 
 
 class CreateData:
-    def __init__(self, df, keywords, timeframe, geo):
+    """
+    This class takes as input an Eikon historical stock price dataset as well as 3 keywords and a and timeframe (which
+    shouldn't go beyond 5 years if wanting weekly data) with which to create the Google Trends data. It will return the
+    aggregated dataset where the weekly trends values are paired with the nearest daily stock price value.
+    The methods that should be called are:
+    - return_data()
+    - visualise_correlation() will produce a correlation matrix with the target and features columns (removing date)
+
+    """
+    def __init__(self, df, keywords, timeframe):
         self.df = df
-        self.keywords = keywords
+        if keywords.values != 3:
+            raise Exception('Only 3 keywords should be given')
+        else:
+            self.keywords = keywords
         self.timeframe = timeframe
-        self.geo = geo
         self.trends = None
         self.merged_df = None
 
@@ -50,7 +61,7 @@ class CreateData:
 
         for attempt in range(retries):
             try:
-                pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.geo)
+                pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo='GB')
                 self.trends = pytrends.interest_over_time()
                 return pd.DataFrame(self.trends)
             except TooManyRequestsError as e:
@@ -117,7 +128,6 @@ class CreateData:
         sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
         plt.show()
 
-
     def visualise_price(self):
         price = self.merged_df['Next Day Close']
         time_scale = self.merged_df['Exchange Date']
@@ -129,19 +139,19 @@ class CreateData:
         plt.show()
 
 
-weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Tesla Price History.xlsx')
+#weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Tesla Price History.xlsx')
 #daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
 
-create_data = CreateData(weekly_data, ['ev', 'elon', 'tesla'], '2019-05-15 2024-05-14', 'GB')
+#create_data = CreateData(weekly_data, ['ev', 'elon', 'tesla'], '2019-05-15 2024-05-14')
 #full_data = create_data.return_data()
 #visualise_correlation(full_data)
-updated_df = create_data.return_data()
-create_data.visualise_correlation()
-create_data.visualise_price()
-print(updated_df)
+#updated_df = create_data.return_data()
+#create_data.visualise_correlation()
+#create_data.visualise_price()
+#print(updated_df)
 
 
 #Ocado & Astra '2019-03-31 2024-03-27'
 #Tesla '2019-05-15 2024-05-14'
 
-updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Tesla Stock & Trends.xlsx', index=False)
+#updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Tesla Stock & Trends.xlsx', index=False)
