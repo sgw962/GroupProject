@@ -1,19 +1,17 @@
 import ns
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score
 from sklearn.metrics import make_scorer, mean_squared_error, r2_score, mean_absolute_error, mean_absolute_percentage_error
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import MinMaxScaler
 #from src.data.data_preprocessing import CreateData
 #from src.data.data_preprocessing import updated_df
 #from src.data.data_preprocessing import visualise_correlation
 from sklearn.preprocessing import StandardScaler
 from datetime import datetime, timedelta
 from xgboost import XGBRegressor
+import shap
 
 
 class CreateModel:
@@ -35,14 +33,15 @@ class CreateModel:
     If wanting to save the metrics as a table in Excel call get_metrics_dataframe().
     """
 
-    def __init__(self, df):
+    def __init__(self, df, df_name):
         interaction = (df.iloc[:, 6] + df.iloc[:, 7] + df.iloc[:, 8]) / 3
-        df.insert(len(data.columns) - 1, 'Trends', interaction)
+        df.insert(len(df.columns) - 1, 'Trends', interaction)
         columns_to_drop = df.columns[6:9]
         df.drop(columns=columns_to_drop, inplace=True)
         self.df = df
         self.df['Exchange Date'] = pd.to_datetime(self.df['Exchange Date'])
         self.df_sorted = self.df.sort_values(by='Exchange Date')
+        self.df_name = df_name
 
         self.X_train = None
         self.y_train = None
@@ -113,19 +112,20 @@ class CreateModel:
         print(f'{set_name} - \nMean Squared Error: {mse}\nRoot Mean Squared Error: {rmse}\nR^2 Score: {r2}\nMean Absolute Error: {mae}\nMean Absolute Percentage Error: {mape}%')
 
     def line_plot(self, data_name, time_frame, actual, predicted):
+        plt.figure(figsize=(8, 6))
         plt.plot(time_frame, predicted, label='Predicted Values')
         plt.plot(time_frame, actual, label='Actual Values')
 
-        plt.title(f'{data_name} Actual vs Predicted Values')
+        plt.title(f'Actual vs Predicted Values {data_name}')
         plt.xlabel('Exchange Date')
         plt.ylabel('Next Day Close Price')
         plt.legend()
         plt.show()
 
-    def scatter_plot(self, test_y, pred_y):
+    def scatter_plot(self, title, test_y, pred_y):
         plt.figure(figsize=(8, 6))
         plt.scatter(test_y, pred_y, alpha=0.5)
-        plt.title('Actual vs. Predicted Values')
+        plt.title(f'Actual vs Predicted {title}')
         plt.xlabel('Actual Values')
         plt.ylabel('Predicted Values')
         plt.plot([test_y.min(), test_y.max()], [test_y.min(), test_y.max()], 'k--', lw=2)
@@ -148,7 +148,7 @@ class CreateModel:
                 print('Warning: Some feature importances are negative')
 
             sorted_indices = np.argsort(importances)[::-1]
-            plt.figure(figsize=(10, 7))
+            plt.figure(figsize=(8, 6))
             plt.title(f'{features_name} Feature Importance', fontsize=16)
             plt.bar(range(len(importances)), importances[sorted_indices], align='center')
             plt.xticks(range(len(importances)), feature_names[sorted_indices], rotation=45)
@@ -180,13 +180,13 @@ class CreateModel:
         self.y_val_pred = self.build_model(params, self.X_train, self.y_train, self.X_val)
         self.evaluate_model(self.y_val, self.y_val_pred, '\nValidation Set')
 
-        self.line_plot('Test Data', self.test_dates, self.y_test, self.y_pred)
-        self.line_plot('Validation Data', self.val_dates, self.y_val, self.y_val_pred)
+        self.line_plot(f'{self.df_name} Test Data', self.test_dates, self.y_test, self.y_pred)
+        self.line_plot(f'{self.df_name} Validation Data', self.val_dates, self.y_val, self.y_val_pred)
 
-        self.scatter_plot(self.y_test, self.y_pred)
-        self.scatter_plot(self.y_val, self.y_val_pred)
+        self.scatter_plot(f'{self.df_name} Test Data', self.y_test, self.y_pred)
+        self.scatter_plot(f'{self.df_name} Validation Data', self.y_val, self.y_val_pred)
 
-        self.feature_importance('X Train Set')
+        self.feature_importance(f'{self.df_name} X Train Set')
 
     def retrain_with_validation(self, params=None):
         X_combined = pd.concat([self.X_train, self.X_val])
@@ -199,13 +199,13 @@ class CreateModel:
         self.y_val_pred = self.build_model(params, X_combined, y_combined, self.X_val)
         self.evaluate_model(self.y_val, self.y_val_pred, "\nValidation Set After Retraining with Validation")
 
-        self.line_plot('Test Data After Retraining with Validation', self.test_dates, self.y_test, self.y_pred)
-        self.line_plot('Validation Data After Retraining with Validation', self.val_dates, self.y_val, self.y_val_pred)
+        self.line_plot(f'{self.df_name} Test Data After Retraining with Validation', self.test_dates, self.y_test, self.y_pred)
+        self.line_plot(f'{self.df_name} Validation Data After Retraining with Validation', self.val_dates, self.y_val, self.y_val_pred)
 
-        self.scatter_plot(self.y_test, self.y_pred)
-        self.scatter_plot(self.y_val, self.y_val_pred)
+        self.scatter_plot(f'{self.df_name} Test Data After Retraining with Validation', self.y_test, self.y_pred)
+        self.scatter_plot(f'{self.df_name} Validation Data After Retraining with Validation', self.y_val, self.y_val_pred)
 
-        self.feature_importance('X Train with Validation Set')
+        self.feature_importance(f'{self.df_name} X Train with Validation Set')
 
     def retrain_without_trends(self, params=None):
         columns_to_drop = [5]
@@ -219,16 +219,18 @@ class CreateModel:
         self.y_val_pred = self.build_model(params, new_train, self.y_train, new_val)
         self.evaluate_model(self.y_val, self.y_val_pred, '\nValidation Set Without Trends Data')
 
-        self.line_plot('Test Set Without Trends Data', self.test_dates, self.y_test, self.y_pred)
-        self.line_plot('Validation Data Without Trends Data', self.val_dates, self.y_val, self.y_val_pred)
+        self.line_plot(f'{self.df_name} Test Set Without Trends Data', self.test_dates, self.y_test, self.y_pred)
+        self.line_plot(f'{self.df_name} Validation Data Without Trends Data', self.val_dates, self.y_val, self.y_val_pred)
 
-        self.scatter_plot(self.y_test, self.y_pred)
-        self.scatter_plot(self.y_val, self.y_val_pred)
+        self.scatter_plot(f'{self.df_name} Test Set Without Trends Data', self.y_test, self.y_pred)
+        self.scatter_plot(f'{self.df_name} Validation Data Without Trends Data', self.y_val, self.y_val_pred)
 
-        self.feature_importance('X Train Set without Trends Data')
+        self.feature_importance(f'{self.df_name} X Train Set without Trends Data')
 
     def get_metrics_dataframe(self):
-        return pd.DataFrame(self.metrics).transpose()
+        metrics_table = pd.DataFrame(self.metrics).transpose()
+        metrics_table.to_excel(f'/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/{self.df_name} Metrics.xlsx')
+        return metrics_table
 
 
 param_grid = {
@@ -253,24 +255,23 @@ params_list = {
     'updater': 'coord_descent'
     }
 
-data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & trends.xlsx')
+#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & trends.xlsx')
+
+#plt.plot(data['Exchange Date'], data['Next Day Close'])
+#plt.title('Next Day Close for whole Ocado Data')
+#plt.xlabel('Exchange Date')
+#plt.ylabel('Next Day Close Price')
+#plt.show()
 
 
-plt.plot(data['Exchange Date'], data['Next Day Close'])
-plt.title('Next Day Close for whole Ocado Data')
-plt.xlabel('Exchange Date')
-plt.ylabel('Next Day Close Price')
-plt.show()
-
-
-create_model = CreateModel(data)
-create_model.split_data(0.8, 0.1, 0.1)
+#create_model = CreateModel(data, 'Ocado')
+#create_model.split_data(0.8, 0.1, 0.1)
 
 #best_params = create_model.tune_parameters(boosters)
 
-create_model.train_model()
-create_model.retrain_with_validation()
-create_model.retrain_without_trends()
-metrics_df = create_model.get_metrics_dataframe()
+#create_model.train_model()
+#create_model.retrain_with_validation()
+#create_model.retrain_without_trends()
+#metrics_df = create_model.get_metrics_dataframe()
 
-metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/Ocado Metrics.xlsx')
+#metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/Ocado Metrics.xlsx')

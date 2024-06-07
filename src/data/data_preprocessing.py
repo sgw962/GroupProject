@@ -29,10 +29,11 @@ class CreateData:
     - visualise_correlation() will produce a correlation matrix with the target and features columns (removing date)
 
     """
-    def __init__(self, df, keywords, timeframe):
+    def __init__(self, df, df_name, keywords, timeframe):
         self.df = df
-        if keywords.values != 3:
-            raise Exception('Only 3 keywords should be given')
+        self.df_name = df_name
+        if len(keywords) != 3:
+            raise ValueError('Only 3 keywords should be given')
         else:
             self.keywords = keywords
         self.timeframe = timeframe
@@ -118,6 +119,7 @@ class CreateData:
         self.get_trends()
         self.merge_datasets(stocks)
         self.normalise_data()
+        self.merged_df.to_excel(f'/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/{self.df_name} Stock & Trends.xlsx', index=False)
         return self.merged_df
 
     def visualise_correlation(self):
@@ -125,6 +127,7 @@ class CreateData:
         corr = corr_df.corr()
 
         plt.figure(figsize=(10, 8))
+        plt.title(f'{self.df_name} Data Correlation Matrix', fontsize=25)
         sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
         plt.show()
 
@@ -133,7 +136,7 @@ class CreateData:
         time_scale = self.merged_df['Exchange Date']
         plt.plot(time_scale, price)
 
-        plt.title('Next Day Closing Price Over Time')
+        plt.title(f'{self.df_name} Next Day Closing Price Over Time')
         plt.xlabel('Exchange Date')
         plt.ylabel('Close Price')
         plt.show()
@@ -153,5 +156,6 @@ class CreateData:
 
 #Ocado & Astra '2019-03-31 2024-03-27'
 #Tesla '2019-05-15 2024-05-14'
+#Diageo '2019-05-16 2024-05-14'
 
 #updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Tesla Stock & Trends.xlsx', index=False)
