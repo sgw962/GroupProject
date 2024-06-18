@@ -1,18 +1,11 @@
 import ns
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import openpyxl
 import seaborn as sns
 import numpy as np
 from pytrends.exceptions import TooManyRequestsError
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import mean_squared_error, r2_score
 from pytrends.request import TrendReq
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import accuracy_score
-import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sklearn.preprocessing import MinMaxScaler
 import requests
@@ -25,13 +18,14 @@ class CreateData:
     shouldn't go beyond 5 years if wanting weekly data) with which to create the Google Trends data. It will return the
     aggregated dataset where the weekly trends values are paired with the nearest daily stock price value.
     The methods that should be called are:
-    - return_data()
-    - visualise_correlation() will produce a correlation matrix with the target and features columns (removing date)
-
+    - return_data() which will create the merged dataframe
+    - visualise_correlation() will produce a correlation matrix with the target and features columns (removing date).
+    - visualise_price() will produce a line graph of the closing price column over the five-year period.
     """
-    def __init__(self, df, df_name, keywords, timeframe):
+    def __init__(self, df, df_name, keywords, timeframe, location):
         self.df = df
         self.df_name = df_name
+        # Ensures there are 3 keywords entered
         if len(keywords) != 3:
             raise ValueError('Only 3 keywords should be given')
         else:
@@ -39,18 +33,19 @@ class CreateData:
         self.timeframe = timeframe
         self.trends = None
         self.merged_df = None
+        self.location = location
 
     def create_target(self):
         self.df = self.df.dropna()
+        # Creates target column
         self.df['Next Day Close'] = self.df['Close'].shift(1)
         self.df = self.df.iloc[1:]
-
         return self.df
 
     def get_trends(self):
         self.keywords = [i.title() for i in self.keywords]
-
-        vader_lexicon_path = '/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/vader_lexicon.txt'
+        # Will need to be adjusted for use on your own computer
+        vader_lexicon_path = '/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/vader_lexicon.txt'
         sia = SentimentIntensityAnalyzer(
             lexicon_file=vader_lexicon_path
         )
@@ -62,7 +57,7 @@ class CreateData:
 
         for attempt in range(retries):
             try:
-                pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo='GB')
+                pytrends.build_payload(self.keywords, timeframe=self.timeframe, geo=self.location)
                 self.trends = pytrends.interest_over_time()
                 return pd.DataFrame(self.trends)
             except TooManyRequestsError as e:
@@ -75,21 +70,15 @@ class CreateData:
         raise Exception("Failed to retrieve trends data after multiple attempts")
 
     def merge_datasets(self, stock_data):
-        """
-        Required input (param) and output (return) are
-            :param stock_data: Stock price data from EIKON
-            :param trends: Weekly trends data acquired with PyTrends
-            :return: A merged dataset which has the stock price data along with trends search data and keeps the 'New Close Price' as the end column
-        """
         # Resetting index for trends data so the date column is no longer used as the index and can instead be used to merge the datasets
         new_trends = self.trends.reset_index()
 
         # Ensuring both date columns are in datetime format
         stock_data['Exchange Date'] = pd.to_datetime(stock_data['Exchange Date'])
         new_trends['date'] = pd.to_datetime(new_trends['date'])
-
-        # Finding the nearest dates and merging the 'AstraZeneca' column based on these
+        # Finds the nearest 'Exchange Date' value to apply to trends date
         stock_data['nearest_date'] = stock_data['Exchange Date'].apply(lambda x: new_trends['date'].iloc[(new_trends['date'] - x).abs().argsort()[0]])
+        # Joins two datasets together
         self.merged_df = pd.merge(stock_data, new_trends, left_on='nearest_date', right_on='date', how='left')
 
         # Removing redundant columns
@@ -109,12 +98,15 @@ class CreateData:
         else:
             numeric_cols = self.merged_df.select_dtypes(include=np.number).columns.tolist()
             numeric_cols.remove('Next Day Close')
-            scaler = MinMaxScaler()#.fit(self.merged_df[numeric_cols])
+            scaler = MinMaxScaler()
             df_scaled = scaler.fit_transform(self.merged_df[numeric_cols])
             self.merged_df[numeric_cols] = df_scaled
             return self.merged_df
 
     def return_data(self):
+        """
+        Uses classes functions to produce merged dataset
+        """
         stocks = self.create_target()
         self.get_trends()
         self.merge_datasets(stocks)
@@ -123,39 +115,27 @@ class CreateData:
         return self.merged_df
 
     def visualise_correlation(self):
+        """
+        Produces correlation matrix
+        """
         corr_df = self.merged_df.drop('Exchange Date', axis=1)
         corr = corr_df.corr()
 
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(10, 10))
         plt.title(f'{self.df_name} Data Correlation Matrix', fontsize=25)
         sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True, linewidths=.5, cbar_kws={"shrink": .5})
+        plt.xticks(rotation=45)
         plt.show()
 
     def visualise_price(self):
+        """
+        Visualises target variable
+        """
         price = self.merged_df['Next Day Close']
         time_scale = self.merged_df['Exchange Date']
         plt.plot(time_scale, price)
 
         plt.title(f'{self.df_name} Next Day Closing Price Over Time')
         plt.xlabel('Exchange Date')
-        plt.ylabel('Close Price')
+        plt.ylabel('Next Day Close Price')
         plt.show()
-
-
-#weekly_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Tesla Price History.xlsx')
-#daily_data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/Daily Ocado Price History.xlsx')
-
-#create_data = CreateData(weekly_data, ['ev', 'elon', 'tesla'], '2019-05-15 2024-05-14')
-#full_data = create_data.return_data()
-#visualise_correlation(full_data)
-#updated_df = create_data.return_data()
-#create_data.visualise_correlation()
-#create_data.visualise_price()
-#print(updated_df)
-
-
-#Ocado & Astra '2019-03-31 2024-03-27'
-#Tesla '2019-05-15 2024-05-14'
-#Diageo '2019-05-16 2024-05-14'
-
-#updated_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Tesla Stock & Trends.xlsx', index=False)

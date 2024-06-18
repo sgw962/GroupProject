@@ -2,16 +2,10 @@ import ns
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import make_scorer, mean_squared_error, r2_score, mean_absolute_error, mean_absolute_percentage_error
-from sklearn.feature_extraction.text import CountVectorizer
-#from src.data.data_preprocessing import CreateData
-#from src.data.data_preprocessing import updated_df
-#from src.data.data_preprocessing import visualise_correlation
-from sklearn.preprocessing import StandardScaler
-from datetime import datetime, timedelta
 from xgboost import XGBRegressor
-import shap
+import seaborn as sns
 
 
 class CreateModel:
@@ -34,8 +28,10 @@ class CreateModel:
     """
 
     def __init__(self, df, df_name):
+        # Creates and adds the aggregated 'Trends' column
         interaction = (df.iloc[:, 6] + df.iloc[:, 7] + df.iloc[:, 8]) / 3
         df.insert(len(df.columns) - 1, 'Trends', interaction)
+        # Removes the now redundant separate trends data columns
         columns_to_drop = df.columns[6:9]
         df.drop(columns=columns_to_drop, inplace=True)
         self.df = df
@@ -80,19 +76,24 @@ class CreateModel:
         self.X_val = val_data.iloc[:, 1:7]
         self.y_val = val_data.iloc[:, -1]
 
+        # Creates indexed data for the dates to use in visualisations
         self.test_dates = test_data['Exchange Date']
         self.val_dates = val_data['Exchange Date']
 
+        # Shows the size of each dataset
         print("Training data length:", len(train_data))
         print("Testing data length:", len(test_data))
         print("Validation data length:", len(val_data))
 
     def build_model(self, parameters=None, training_x=None, training_y=None, testing_x=None):
+        """
+        Used to apply the XGBR model.
+        """
         if training_x is None:
             raise Exception("Please provide training data")
 
         if parameters is None:
-            parameters = {'updater': 'coord_descent', 'n_estimators': 1000, 'learning_rate': 0.3, 'lambda': 0.0001,
+            parameters = {'updater': 'coord_descent', 'n_estimators': 1100, 'learning_rate': 0.3, 'lambda': 0.0001,
                           'feature_selector': 'greedy', 'booster': 'gblinear', 'alpha': 0,
                           'objective': 'reg:squarederror'}
         self.model = XGBRegressor(**parameters)
@@ -101,6 +102,9 @@ class CreateModel:
         return predicted_y
 
     def evaluate_model(self, y_true, y_pred, set_name="Test Set"):
+        """
+        Produces the evaluation metrics.
+        """
         mse = mean_squared_error(y_true, y_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_true, y_pred)
@@ -112,6 +116,9 @@ class CreateModel:
         print(f'{set_name} - \nMean Squared Error: {mse}\nRoot Mean Squared Error: {rmse}\nR^2 Score: {r2}\nMean Absolute Error: {mae}\nMean Absolute Percentage Error: {mape}%')
 
     def line_plot(self, data_name, time_frame, actual, predicted):
+        """
+        Produces the line graphs.
+        """
         plt.figure(figsize=(8, 6))
         plt.plot(time_frame, predicted, label='Predicted Values')
         plt.plot(time_frame, actual, label='Actual Values')
@@ -123,6 +130,9 @@ class CreateModel:
         plt.show()
 
     def scatter_plot(self, title, test_y, pred_y):
+        """
+        Produces the scatter plots.
+        """
         plt.figure(figsize=(8, 6))
         plt.scatter(test_y, pred_y, alpha=0.5)
         plt.title(f'Actual vs Predicted {title}')
@@ -132,6 +142,9 @@ class CreateModel:
         plt.show()
 
     def feature_importance(self, features_name):
+        """
+        Produces the feature importance bar graphs.
+        """
         if self.model is None:
             print('Cannot show feature importance as model has not been built yet. Please call build_model() first.')
             return
@@ -156,6 +169,10 @@ class CreateModel:
             plt.show()
 
     def tune_parameters(self, params):
+        """
+        Finds the best parameters options based on R2, MSE, MAE, and MAPE metrics. Currently set to use for random search
+        but this can be adjusted for grid search.
+        """
         scorers = {
             'R2': make_scorer(r2_score),
             'MSE': make_scorer(mean_squared_error, greater_is_better=False),
@@ -174,6 +191,9 @@ class CreateModel:
         return self.best_params_
 
     def train_model(self, params=None):
+        """
+        Call to assess model performance for test and validation on train dataset.
+        """
         self.y_pred = self.build_model(params, self.X_train, self.y_train, self.X_test)
         self.evaluate_model(self.y_test, self.y_pred, '\nTest Set')
 
@@ -182,32 +202,30 @@ class CreateModel:
 
         self.line_plot(f'{self.df_name} Test Data', self.test_dates, self.y_test, self.y_pred)
         self.line_plot(f'{self.df_name} Validation Data', self.val_dates, self.y_val, self.y_val_pred)
-
         self.scatter_plot(f'{self.df_name} Test Data', self.y_test, self.y_pred)
         self.scatter_plot(f'{self.df_name} Validation Data', self.y_val, self.y_val_pred)
 
         self.feature_importance(f'{self.df_name} X Train Set')
 
     def retrain_with_validation(self, params=None):
+        """
+        Call to assess model performance for test data on train with validation dataset.
+        """
         X_combined = pd.concat([self.X_train, self.X_val])
         y_combined = pd.concat([self.y_train, self.y_val])
 
         self.y_pred = self.build_model(params, X_combined, y_combined, self.X_test)
         self.evaluate_model(self.y_test, self.y_pred, "\nTest Set After Retraining with Validation")
 
-        # Evaluate the model on the validation set
-        self.y_val_pred = self.build_model(params, X_combined, y_combined, self.X_val)
-        self.evaluate_model(self.y_val, self.y_val_pred, "\nValidation Set After Retraining with Validation")
-
         self.line_plot(f'{self.df_name} Test Data After Retraining with Validation', self.test_dates, self.y_test, self.y_pred)
-        self.line_plot(f'{self.df_name} Validation Data After Retraining with Validation', self.val_dates, self.y_val, self.y_val_pred)
-
         self.scatter_plot(f'{self.df_name} Test Data After Retraining with Validation', self.y_test, self.y_pred)
-        self.scatter_plot(f'{self.df_name} Validation Data After Retraining with Validation', self.y_val, self.y_val_pred)
 
         self.feature_importance(f'{self.df_name} X Train with Validation Set')
 
     def retrain_without_trends(self, params=None):
+        """
+        Call to assess model performance for test and validation on train (without trends) dataset.
+        """
         columns_to_drop = [5]
         new_train = self.X_train.drop(self.X_train.columns[columns_to_drop], axis=1)
         new_test = self.X_test.drop(self.X_test.columns[columns_to_drop], axis=1)
@@ -219,59 +237,17 @@ class CreateModel:
         self.y_val_pred = self.build_model(params, new_train, self.y_train, new_val)
         self.evaluate_model(self.y_val, self.y_val_pred, '\nValidation Set Without Trends Data')
 
-        self.line_plot(f'{self.df_name} Test Set Without Trends Data', self.test_dates, self.y_test, self.y_pred)
-        self.line_plot(f'{self.df_name} Validation Data Without Trends Data', self.val_dates, self.y_val, self.y_val_pred)
+        self.line_plot(f'{self.df_name} Test Set Without Trends', self.test_dates, self.y_test, self.y_pred)
+        self.line_plot(f'{self.df_name} Validation Data Without Trends', self.val_dates, self.y_val, self.y_val_pred)
+        self.scatter_plot(f'{self.df_name} Test Set Without Trends', self.y_test, self.y_pred)
+        self.scatter_plot(f'{self.df_name} Validation Data Without Trends', self.y_val, self.y_val_pred)
 
-        self.scatter_plot(f'{self.df_name} Test Set Without Trends Data', self.y_test, self.y_pred)
-        self.scatter_plot(f'{self.df_name} Validation Data Without Trends Data', self.y_val, self.y_val_pred)
-
-        self.feature_importance(f'{self.df_name} X Train Set without Trends Data')
+        self.feature_importance(f'{self.df_name} X Train Set Without Trends')
 
     def get_metrics_dataframe(self):
+        """
+        Produces metrics table in Excel format. Adjust file path as needed.
+        """
         metrics_table = pd.DataFrame(self.metrics).transpose()
         metrics_table.to_excel(f'/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/{self.df_name} Metrics.xlsx')
         return metrics_table
-
-
-param_grid = {
-    'booster': ['gblinear'],  # Booster type
-    'n_estimators': [100, 200, 300, 500, 1000, 1100, 1200, 1400],  # Number of boosting rounds
-    'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3, 0.4],  # Step size shrinkage
-    'lambda': [0, 0.000001, 0.0001, 0.01, 0.1, 1],  # L2 regularization term on weights
-    'alpha': [0, 0.000001, 0.0001, 0.01, 0.1, 1],  # L1 regularization term on weights
-    'feature_selector': ['thrifty', 'cyclic', 'shuffle', 'random', 'greedy'],  # Feature selector type
-    'updater': ['coord_descent'],# 'shotgun'],  # Updater type for linear booster
-    'objective': ['reg:squaredlogerror', 'reg:squarederror', ]  # Learning objective
-            }
-
-params_list = {
-    #'alpha': 0.1,
-    'booster': 'gblinear',
-    'feature_selector': 'thrifty',
-    'lambda': 0.001,
-    'learning_rate': 0.6,
-    'n_estimators': 200,
-    #'objective': 'reg:squaredlogerror',
-    'updater': 'coord_descent'
-    }
-
-#data = pd.read_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/stocks & trends/Ocado Stock & trends.xlsx')
-
-#plt.plot(data['Exchange Date'], data['Next Day Close'])
-#plt.title('Next Day Close for whole Ocado Data')
-#plt.xlabel('Exchange Date')
-#plt.ylabel('Next Day Close Price')
-#plt.show()
-
-
-#create_model = CreateModel(data, 'Ocado')
-#create_model.split_data(0.8, 0.1, 0.1)
-
-#best_params = create_model.tune_parameters(boosters)
-
-#create_model.train_model()
-#create_model.retrain_with_validation()
-#create_model.retrain_without_trends()
-#metrics_df = create_model.get_metrics_dataframe()
-
-#metrics_df.to_excel('/Users/seanwhite/OneDrive - University of Greenwich/Documents/Group Project/group_project_code/data/metrics tables/Ocado Metrics.xlsx')
